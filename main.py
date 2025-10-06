@@ -69,7 +69,7 @@ async def depot(ctx):
     await ctx.send(embed=embed)
 
 # --- Automatisches Update alle 10 Minuten ---
-@tasks.loop(minutes=10)
+@tasks.loop(seconds=15)
 async def tages_update():
     """Postet alle 10 Minuten eine neue Depot-Nachricht."""
     channel = bot.get_channel(DISCORD_CHANNEL_ID)
