@@ -34,13 +34,13 @@ async def depot(ctx):
         msg += f"{emoji} {aktie}: {wert:,.2f} € ({veraenderung:+.2f}%)\n"
     await ctx.send(msg)
 
-@tasks.loop(hours=24)
+@tasks.loop(minutes=10)
 async def tages_update():
     """Postet jeden Tag ein Update automatisch."""
     channel = bot.get_channel(DISCORD_CHANNEL_ID)
     daten = await lese_google_sheet()
     gesamt = sum(float(d["Wert"]) for d in daten)
-    await channel.send(f"📆 **Tagesupdate:** Gesamtwert: {gesamt:,.2f} €")
+    await channel.send(f"📆 **Update:** Gesamtwert: {gesamt:,.2f} €")
 
 @bot.event
 async def on_ready():
