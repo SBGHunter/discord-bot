@@ -46,7 +46,7 @@ async def depot(ctx):
     await ctx.send(msg)
 
 # --- Tasks ---
-@tasks.loop(minutes=10)
+@tasks.loop(seconds=10)
 async def tages_update():
     """Postet automatisch Updates in den Kanal."""
     channel = bot.get_channel(DISCORD_CHANNEL_ID)
