@@ -1,56 +1,50 @@
 import os
-import asyncio
-import logging
+import io
+import csv
 import aiohttp
-from bs4 import BeautifulSoup
 import discord
-from discord.ext import tasks, commands
+from discord.ext import commands, tasks
 
-# --- Konfiguration über Environment Variables ---
+# --- Konfiguration ---
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 DISCORD_CHANNEL_ID = int(os.environ.get("DISCORD_CHANNEL_ID", "0"))
-SITE_BASE = os.environ.get("SITE_BASE", "https://example.com")
+GOOGLE_SHEET_CSV_URL = os.environ.get("GOOGLE_SHEET_CSV_URL")
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("bot_http")
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.default())
 
-intents = discord.Intents.default()
-bot = commands.Bot(command_prefix="!", intents=intents)
+async def lese_google_sheet():
+    """Liest das Google Sheet (CSV) aus und gibt es als Liste zurück."""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(GOOGLE_SHEET_CSV_URL) as resp:
+            text = await resp.text()
+    reader = csv.DictReader(io.StringIO(text))
+    return [row for row in reader]
 
-session = None
+@bot.command()
+async def depot(ctx):
+    """Zeigt das aktuelle Depot an."""
+    daten = await lese_google_sheet()
+    gesamt = sum(float(d["Wert"]) for d in daten)
+    msg = f"📊 **Depotübersicht**\n💰 Gesamtwert: {gesamt:,.2f} €\n\n"
+    for d in daten:
+        aktie = d["Aktie"]
+        wert = float(d["Wert"])
+        veraenderung = float(d["Veränderung"])
+        emoji = "📈" if veraenderung > 0 else ("📉" if veraenderung < 0 else "➖")
+        msg += f"{emoji} {aktie}: {wert:,.2f} € ({veraenderung:+.2f}%)\n"
+    await ctx.send(msg)
 
-async def fetch_data():
-    """Ruft einfache Daten von einer Website ab."""
-    global session
-    if session is None:
-        session = aiohttp.ClientSession()
-    async with session.get(SITE_BASE) as resp:
-        html = await resp.text()
-    soup = BeautifulSoup(html, "html.parser")
-    title = soup.title.string if soup.title else "Kein Titel gefunden"
-    return f"Seitentitel: {title}"
+@tasks.loop(hours=24)
+async def tages_update():
+    """Postet jeden Tag ein Update automatisch."""
+    channel = bot.get_channel(DISCORD_CHANNEL_ID)
+    daten = await lese_google_sheet()
+    gesamt = sum(float(d["Wert"]) for d in daten)
+    await channel.send(f"📆 **Tagesupdate:** Gesamtwert: {gesamt:,.2f} €")
 
 @bot.event
 async def on_ready():
-    log.info(f"✅ Bot online als {bot.user}")
-    periodic_task.start()
-
-@tasks.loop(minutes=1)
-async def periodic_task():
-    channel = bot.get_channel(DISCORD_CHANNEL_ID)
-    if not channel:
-        log.error("Channel nicht gefunden.")
-        return
-    try:
-        data = await fetch_data()
-        await channel.send(f"📡 Website-Daten:\n```\n{data}\n```")
-    except Exception as e:
-        await channel.send(f"⚠️ Fehler: {e}")
-
-@bot.command()
-async def check(ctx):
-    """Manueller Check: !check"""
-    data = await fetch_data()
-    await ctx.send(f"👀 Ergebnis:\n```\n{data}\n```")
+    print(f"✅ Bot online als {bot.user}")
+    tages_update.start()
 
 bot.run(DISCORD_TOKEN)
