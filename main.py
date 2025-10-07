@@ -114,3 +114,4 @@ async def on_ready():
 
 # --- Bot starten ---
 bot.run(DISCORD_TOKEN)
+
